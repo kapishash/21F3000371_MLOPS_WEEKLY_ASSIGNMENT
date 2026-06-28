@@ -199,7 +199,6 @@ Each model version is tracked using DVC and stored in the configured Google Clou
 Previous versions of datasets and models can be restored using:
 
 ```bash
-git checkout <commit_hash>
 dvc checkout
 ```
 
@@ -217,7 +216,7 @@ dvc checkout
 Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone [repository-url](https://github.com/kapishash/21F3000371_MLOPS_WEEKLY_ASSIGNMENT)
 ```
 
 Move into the repository
