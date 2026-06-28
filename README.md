@@ -216,7 +216,7 @@ dvc checkout
 Clone the repository
 
 ```bash
-git clone [repository-url](https://github.com/kapishash/21F3000371_MLOPS_WEEKLY_ASSIGNMENT)
+git clone https://github.com/kapishash/21F3000371_MLOPS_WEEKLY_ASSIGNMENT
 ```
 
 Move into the repository
