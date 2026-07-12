@@ -14,11 +14,12 @@ client = storage.Client()
 
 # Download dataset
 data_bucket = client.bucket(DATA_BUCKET)
-blob = data_bucket.blob("data_v2.csv") # data_v2.csv for 2nd version
-blob.download_to_filename("data_v2.csv")  # data_v2.csv for 2nd version
+DATASET_FILE = "data_v2.csv"    # "data_v2.csv" for version 2
 
-# Read dataset
-df = pd.read_csv("data_v2.csv")
+blob = data_bucket.blob(DATASET_FILE)
+blob.download_to_filename(DATASET_FILE)
+
+df = pd.read_csv(DATASET_FILE)
 
 # Split data
 train_df, eval_df = train_test_split(
