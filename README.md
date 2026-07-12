@@ -372,4 +372,6 @@ This assignment demonstrates a complete CI workflow for a machine learning pipel
 
 By integrating GitHub Actions and CML, every code change is automatically validated through data checks and model performance tests before merging.
 
+### done
+
 This ensures better reliability, reproducibility, and quality control in ML development workflows.
