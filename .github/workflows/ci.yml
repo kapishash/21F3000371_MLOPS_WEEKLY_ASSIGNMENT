@@ -4,6 +4,7 @@ on:
   push:
   pull_request:
 
+
 jobs:
 
   test:
@@ -31,3 +32,25 @@ jobs:
     - name: Run tests
       run: |
         pytest
+
+
+    - name: Generate test report
+      if: always()
+      run: |
+        pytest --junitxml=test-results.xml
+
+
+    - name: Setup CML
+      uses: iterative/setup-cml@v2
+
+
+    - name: Publish CML Report
+      if: always()
+      env:
+        REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "# IRIS Model CI Report" > report.md
+        echo "" >> report.md
+        echo "## Test Results" >> report.md
+        cat test-results.xml >> report.md
+        cml comment create report.md
