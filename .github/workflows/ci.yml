@@ -28,17 +28,6 @@ jobs:
         pip install -r requirements.txt
 
 
-    - name: Authenticate GCP
-      uses: google-github-actions/auth@v2
-      with:
-        credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-
-
-    - name: Pull DVC data and model
-      run: |
-        dvc pull
-
-
     - name: Run tests
       run: |
         pytest
