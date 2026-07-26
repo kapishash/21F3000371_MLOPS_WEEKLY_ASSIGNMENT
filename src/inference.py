@@ -1,55 +1,37 @@
-from google.cloud import storage
-from sklearn.metrics import accuracy_score, classification_report
-import pandas as pd
+from fastapi import FastAPI
+from pydantic import BaseModel
 import joblib
 import os
 
-ARTIFACT_BUCKET = "21f3000371-iris-artifacts"
+MODEL_PATH = "models/model.pkl"
 
-client = storage.Client()
-bucket = client.bucket(ARTIFACT_BUCKET)
+model = joblib.load(MODEL_PATH)
 
-# Get all blobs
-blobs = list(client.list_blobs(ARTIFACT_BUCKET))
+app = FastAPI(title="IRIS Prediction API")
 
-# Extract timestamp folders
-folders = set()
 
-for blob in blobs:
-    if "/" in blob.name:
-        folders.add(blob.name.split("/")[0])
+class IrisInput(BaseModel):
+    sepal_length: float
+    sepal_width: float
+    petal_length: float
+    petal_width: float
 
-# Get latest timestamp folder
-latest_folder = sorted(folders)[-1]
 
-print(f"Using artifacts from: {latest_folder}")
+@app.get("/")
+def home():
+    return {"message": "IRIS Prediction API is running."}
 
-# Download model
-bucket.blob(
-    f"{latest_folder}/model.pkl"
-).download_to_filename("model.pkl")
 
-# Download evaluation data
-bucket.blob(
-    f"{latest_folder}/eval.csv"
-).download_to_filename("eval.csv")
+@app.post("/predict")
+def predict(data: IrisInput):
 
-# Load model
-model = joblib.load("model.pkl")
+    prediction = model.predict([[
+        data.sepal_length,
+        data.sepal_width,
+        data.petal_length,
+        data.petal_width
+    ]])
 
-# Load evaluation data
-df = pd.read_csv("eval.csv")
-
-X = df.drop("species", axis=1)
-y = df["species"]
-
-# Predict
-predictions = model.predict(X)
-
-accuracy = accuracy_score(y, predictions)
-
-print("\nInference Complete")
-print("Accuracy:", accuracy)
-
-print("\nClassification Report:")
-print(classification_report(y, predictions))
+    return {
+        "prediction": prediction[0]
+    }

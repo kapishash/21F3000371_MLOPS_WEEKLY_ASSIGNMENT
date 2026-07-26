@@ -6,3 +6,5 @@ pytest==9.1.1
 dvc==3.67.1
 dvc-gs
 google-cloud-storage
+fastapi
+uvicorn
