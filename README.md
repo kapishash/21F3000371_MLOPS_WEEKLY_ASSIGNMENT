@@ -1,377 +1,249 @@
-# Integrating Continuous Integration (CI) into IRIS ML Pipeline
+# IRIS MLOps Pipeline – Continuous Deployment (Week 6)
 
 ## Overview
 
-This assignment implements a Continuous Integration (CI) workflow for an Iris classification machine learning pipeline using **GitHub Actions**.
+This project demonstrates an end-to-end **Continuous Deployment (CD)** pipeline for an IRIS Flower Classification API using **Docker**, **Google Kubernetes Engine (GKE)**, **Google Artifact Registry**, and **GitHub Actions**.
 
-In previous stages of the project, the ML pipeline was enhanced with:
-
-* **Vertex AI** for cloud-based model training
-* **DVC** for dataset and model versioning
-* **Feast Feature Store** for feature management and training-serving consistency
-
-This assignment focuses on adding CI automation to ensure that every code change is automatically validated before being merged.
-
-The CI pipeline performs:
-
-* Data validation testing
-* Model evaluation testing
-* Automated test execution using GitHub Actions
-* Continuous Machine Learning (CML) reporting on Pull Requests
+The application exposes a REST API that predicts the Iris flower species based on four flower measurements. Every push to the repository automatically builds a Docker image, pushes it to Artifact Registry, and deploys the latest version to a Kubernetes cluster on Google Cloud.
 
 ---
 
-# Objectives
-
-The main objectives of this assignment are:
-
-* Build automated validation tests for ML datasets
-* Validate trained model performance automatically
-* Configure GitHub Actions for CI execution
-* Integrate DVC-tracked ML artifacts into the workflow
-* Generate automated test reports using CML
-* Ensure quality checks before merging changes
-
----
-
-# Project Architecture
+## Project Architecture
 
 ```
-Developer Push / Pull Request
-              |
-              |
-              v
-       GitHub Actions CI
-              |
-              |
-       Install Dependencies
-              |
-              |
-              v
-          Run Pytest
-              |
-       ----------------
-       |              |
-       v              v
- Data Validation   Model Evaluation
-       |              |
-       ----------------
-              |
-              v
-          CML Report
-              |
-              v
-       Pull Request Review
-             
+GitHub Push
+      │
+      ▼
+GitHub Actions
+      │
+      ├── Authenticate with Google Cloud (OIDC)
+      ├── Build Docker Image
+      ├── Push Image to Artifact Registry
+      └── Deploy Updated Image to GKE
+                    │
+                    ▼
+             Kubernetes Deployment
+                    │
+                    ▼
+              LoadBalancer Service
+                    │
+                    ▼
+              FastAPI Prediction API
 ```
 
 ---
 
-# Repository Structure
+# Technology Stack
+
+* Python 3.12
+* FastAPI
+* Uvicorn
+* Scikit-learn
+* Docker
+* Kubernetes (GKE)
+* Google Cloud Platform
+* Google Artifact Registry
+* GitHub Actions
+* Workload Identity Federation (OIDC)
+
+---
+
+# Project Structure
 
 ```
-21F3000371_MLOPS_WEEKLY_ASSIGNMENT
+.
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── cd.yml
 │
 ├── data/
-│   ├── iris.csv
-│   └── iris.csv.dvc
-│
 ├── models/
-│   ├── model.pkl
-│   └── model.pkl.dvc
-│
+├── outputs/
 ├── src/
 │   ├── train.py
 │   └── inference.py
 │
 ├── tests/
-│   ├── test_data.py
-│   └── test_model.py
 │
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-│
+├── Dockerfile
+├── deployment.yaml
+├── service.yaml
 ├── requirements.txt
-│
 └── README.md
 ```
 
 ---
 
-# Dataset
+# Docker
 
-The project uses the Iris dataset containing four numerical features:
-
-| Feature      | Description     |
-| ------------ | --------------- |
-| sepal_length | Length of sepal |
-| sepal_width  | Width of sepal  |
-| petal_length | Length of petal |
-| petal_width  | Width of petal  |
-
-Target variable:
-
-```
-species
-```
-
-The dataset is version controlled using **DVC**.
-
-Example:
-
-```
-data/iris.csv
-data/iris.csv.dvc
-```
-
-The `.dvc` file stores metadata required to reproduce the dataset version.
-
----
-
-# Model
-
-The pipeline uses a:
-
-```
-Random Forest Classifier
-```
-
-The trained model is stored as:
-
-```
-models/model.pkl
-```
-
-The model artifact is tracked using DVC:
-
-```
-models/model.pkl.dvc
-```
-
----
-
-# Testing Framework
-
-Testing is implemented using:
-
-```
-pytest
-```
-
-The test suite contains two categories:
-
----
-
-## 1. Data Validation Tests
-
-File:
-
-```
-tests/test_data.py
-```
-
-The tests verify:
-
-* Dataset availability
-* Correct column schema
-* Missing value checks
-* Feature value ranges
-
-Example validations:
-
-```python
-assert expected_columns == actual_columns
-assert df.isnull().sum().sum() == 0
-```
-
----
-
-## 2. Model Evaluation Tests
-
-File:
-
-```
-tests/test_model.py
-```
-
-The model test performs:
-
-1. Loading the trained model
-2. Loading evaluation data
-3. Generating predictions
-4. Calculating accuracy
-5. Checking minimum performance threshold
-
-Example:
-
-```python
-assert accuracy >= 0.8
-```
-
----
-
-# Continuous Integration Workflow
-
-The CI workflow is configured using:
-
-```
-.github/workflows/ci.yml
-```
-
-The workflow runs automatically on:
-
-* Push events
-* Pull Requests
-
-Workflow steps:
-
-## 1. Checkout Repository
-
-Uses:
-
-```
-actions/checkout
-```
-
-to fetch the repository.
-
-## 2. Setup Python Environment
-
-Creates a Python environment:
-
-```
-Python 3.12
-```
-
-## 3. Install Dependencies
-
-Installs required packages:
-
-```
-pip install -r requirements.txt
-```
-
-## 4. Execute Tests
-
-Runs:
-
-```
-pytest
-```
-
-The workflow fails automatically if any test fails.
-
----
-
-# CML Integration
-
-Continuous Machine Learning (CML) is integrated into the workflow to generate automated reports.
-
-After testing:
-
-* Test results are collected
-* A report is generated
-* Results are posted as a Pull Request comment
-
-Example report:
-
-```
-IRIS Model CI Report
-
-Test Results
-
-5 passed
-```
-
-This allows reviewers to verify ML pipeline quality before merging.
-
----
-
-# Running Locally
-
-## Install Dependencies
+Build the Docker image
 
 ```bash
-pip install -r requirements.txt
+docker build -t iris-api .
 ```
 
-## Run Tests
+Run the container
 
 ```bash
-pytest
+docker run -p 8000:8000 iris-api
 ```
 
-Expected output:
+API URL
 
 ```
-5 passed
+http://localhost:8000
 ```
 
----
-
-# Git Workflow
-
-Development was performed on:
+Swagger UI
 
 ```
-week_4
-```
-
-branch.
-
-After successful CI validation:
-
-Pull Request workflow:
-
-```
-Create PR
-    |
-    v
-GitHub Actions CI
-    |
-    v
-CML Report
-    |
-    v
-Merge
+http://localhost:8000/docs
 ```
 
 ---
 
-# Technologies Used
+# Kubernetes Deployment
 
-| Technology            | Purpose                   |
-| --------------------- | ------------------------- |
-| Python                | Programming language      |
-| Scikit-learn          | Machine learning model    |
-| Pytest                | Automated testing         |
-| GitHub Actions        | Continuous Integration    |
-| DVC                   | Data and model versioning |
-| CML                   | ML reporting              |
-| Google Cloud Platform | Cloud ML environment      |
+Deploy the application
 
----
-
-# CI Execution Result
-
-Final pipeline status:
-
+```bash
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
 ```
-✓ Data validation tests passed
-✓ Model evaluation test passed
-✓ GitHub Actions workflow passed
-✓ CML report generated successfully
+
+Verify deployment
+
+```bash
+kubectl get deployments
+kubectl get pods
+kubectl get services
 ```
 
 ---
 
-# Conclusion
+# Docker Image
 
-This assignment demonstrates a complete CI workflow for a machine learning pipeline.
+The application image is stored in **Google Artifact Registry**.
 
-By integrating GitHub Actions and CML, every code change is automatically validated through data checks and model performance tests before merging.
+```
+us-central1-docker.pkg.dev/mlops-500009/iris-repo/iris-api
+```
 
-### done
+---
 
-This ensures better reliability, reproducibility, and quality control in ML development workflows.
+# GitHub Actions Continuous Deployment
+
+The CD pipeline automatically performs:
+
+* Checkout repository
+* Authenticate to Google Cloud using Workload Identity Federation (OIDC)
+* Configure Docker
+* Build Docker image
+* Push image to Google Artifact Registry
+* Retrieve GKE credentials
+* Update Kubernetes Deployment
+* Wait for successful rollout
+
+The workflow executes automatically whenever code is pushed to the `week_6` or `main` branch.
+
+---
+
+# API Endpoints
+
+## Health Check
+
+```
+GET /
+```
+
+Response
+
+```json
+{
+  "message": "IRIS Prediction API is running."
+}
+```
+
+---
+
+## Predict Species
+
+```
+POST /predict
+```
+
+Request
+
+```json
+{
+  "sepal_length": 5.1,
+  "sepal_width": 3.5,
+  "petal_length": 1.4,
+  "petal_width": 0.2
+}
+```
+
+Response
+
+```json
+{
+  "prediction": "setosa"
+}
+```
+
+Example
+
+```bash
+curl -X POST http://<EXTERNAL-IP>/predict \
+-H "Content-Type: application/json" \
+-d '{
+  "sepal_length":5.1,
+  "sepal_width":3.5,
+  "petal_length":1.4,
+  "petal_width":0.2
+}'
+```
+
+---
+
+# Continuous Deployment Workflow
+
+1. Push code to GitHub.
+2. GitHub Actions starts automatically.
+3. Authenticate with Google Cloud.
+4. Build Docker image.
+5. Push image to Artifact Registry.
+6. Update the Kubernetes deployment.
+7. Kubernetes performs a rolling update.
+8. The latest API becomes available through the LoadBalancer.
+
+---
+
+# Pod vs Container
+
+A **Docker container** is a lightweight package that contains an application along with all its dependencies.
+
+A **Kubernetes Pod** is the smallest deployable unit in Kubernetes. A Pod can contain one or more containers that share networking and storage resources. Kubernetes schedules and manages Pods rather than individual containers, enabling scaling, self-healing, and rolling updates.
+
+---
+
+# Learning Outcomes
+
+* Containerized an ML inference API using Docker.
+* Automated image builds with GitHub Actions.
+* Stored images in Google Artifact Registry.
+* Configured secure authentication using Workload Identity Federation.
+* Deployed the application on Google Kubernetes Engine.
+* Exposed the API using a Kubernetes LoadBalancer.
+* Implemented an end-to-end Continuous Deployment pipeline.
+
+---
+
+# Author
+
+**Kapish Ashtankar**
+
+IIT Madras BS Degree Programme
+
+Course: MLOps Weekly Assignment – Week 6
