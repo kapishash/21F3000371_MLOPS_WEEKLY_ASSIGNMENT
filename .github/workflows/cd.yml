@@ -1,0 +1,60 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches:
+      - week_6
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GAR_LOCATION: us-central1
+  REPOSITORY: iris-repo
+  IMAGE: iris-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER }}
+          location: ${{ secrets.GKE_ZONE }}
+
+      - name: Build Docker Image
+        run: |
+          docker build -t us-central1-docker.pkg.dev/$PROJECT_ID/iris-repo/iris-api:${{ github.sha }} .
+
+      - name: Push Docker Image
+        run: |
+          docker push us-central1-docker.pkg.dev/$PROJECT_ID/iris-repo/iris-api:${{ github.sha }}
+
+      - name: Update Deployment
+        run: |
+          kubectl set image deployment/iris-api \
+          iris-api=us-central1-docker.pkg.dev/$PROJECT_ID/iris-repo/iris-api:${{ github.sha }}
+
+          kubectl rollout status deployment/iris-api
