@@ -1,59 +1,89 @@
-name: IRIS ML CI Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
-  pull_request:
+    branches:
+      - main
+      - week_7
 
-permissions:
-  contents: write
-  pull-requests: write
+env:
+  PROJECT_ID: mlops-500009
+  GAR_LOCATION: us-central1
+  REPOSITORY: iris-repo
+  IMAGE: iris-api
+  CLUSTER_NAME: iris-cluster
+  CLUSTER_ZONE: us-central1-a
 
 jobs:
-
-  test:
-
+  deploy:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/558559129566/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-cd@mlops-500009.iam.gserviceaccount.com
 
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
+      - name: Configure Docker Authentication
+        run: |
+          gcloud auth configure-docker ${GAR_LOCATION}-docker.pkg.dev --quiet
 
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          location: ${{ env.CLUSTER_ZONE }}
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Build Docker Image
+        run: |
+          docker build \
+            -t ${GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${{ github.sha }} \
+            .
 
+      - name: Push Docker Image
+        run: |
+          docker push \
+            ${GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${{ github.sha }}
 
-    - name: Run tests
-      run: |
-        pytest
+      - name: Update Deployment Image
+        run: |
+          kubectl set image deployment/iris-api \
+          iris-api=${GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${{ github.sha }}
 
+      - name: Wait for Rollout
+        run: |
+          kubectl rollout status deployment/iris-api
 
-    - name: Generate test report
-      if: always()
-      run: |
-        pytest --junitxml=test-results.xml
+      #################################################################
+      # WEEK 7 - STRESS TEST
+      #################################################################
 
+      - name: Install wrk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wrk
 
-    - name: Setup CML
-      uses: iterative/setup-cml@v2
+      - name: Create wrk POST Script
+        run: |
+          cat <<EOF > post.lua
+          wrk.method = "POST"
+          wrk.body = '{"sepal_length":5.1,"sepal_width":3.5,"petal_length":1.4,"petal_width":0.2}'
+          wrk.headers["Content-Type"] = "application/json"
+          EOF
 
-
-    - name: Publish CML Report
-      if: always()
-      env:
-        REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        echo "# IRIS Model CI Report" > report.md
-        echo "" >> report.md
-        echo "## Test Results" >> report.md
-        cat test-results.xml >> report.md
-        cml comment create report.md
+      - name: Run Stress Test
+        run: |
+          wrk -t4 -c1000 -d30s \
+          -s post.lua \
+          http://136.116.195.172/predict
