@@ -1,249 +1,222 @@
-# IRIS MLOps Pipeline – Continuous Deployment (Week 6)
+# IRIS MLOps Pipeline – Week 7
 
 ## Overview
 
-This project demonstrates an end-to-end **Continuous Deployment (CD)** pipeline for an IRIS Flower Classification API using **Docker**, **Google Kubernetes Engine (GKE)**, **Google Artifact Registry**, and **GitHub Actions**.
+This project implements a complete MLOps pipeline for the IRIS Classification model on Google Cloud Platform.
 
-The application exposes a REST API that predicts the Iris flower species based on four flower measurements. Every push to the repository automatically builds a Docker image, pushes it to Artifact Registry, and deploys the latest version to a Kubernetes cluster on Google Cloud.
+The pipeline includes:
 
----
-
-## Project Architecture
-
-```
-GitHub Push
-      │
-      ▼
-GitHub Actions
-      │
-      ├── Authenticate with Google Cloud (OIDC)
-      ├── Build Docker Image
-      ├── Push Image to Artifact Registry
-      └── Deploy Updated Image to GKE
-                    │
-                    ▼
-             Kubernetes Deployment
-                    │
-                    ▼
-              LoadBalancer Service
-                    │
-                    ▼
-              FastAPI Prediction API
-```
+- Model training
+- Model versioning
+- Artifact Storage
+- Docker containerization
+- Kubernetes deployment (GKE)
+- CI/CD using GitHub Actions
+- Horizontal Pod Autoscaling
+- Stress Testing
+- Cloud Monitoring
+- Cloud Logging
 
 ---
 
-# Technology Stack
+# Architecture
 
-* Python 3.12
-* FastAPI
-* Uvicorn
-* Scikit-learn
-* Docker
-* Kubernetes (GKE)
-* Google Cloud Platform
-* Google Artifact Registry
-* GitHub Actions
-* Workload Identity Federation (OIDC)
-
----
-
-# Project Structure
-
-```
-.
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── cd.yml
-│
-├── data/
-├── models/
-├── outputs/
-├── src/
-│   ├── train.py
-│   └── inference.py
-│
-├── tests/
-│
-├── Dockerfile
-├── deployment.yaml
-├── service.yaml
-├── requirements.txt
-└── README.md
-```
+GitHub
+↓
+GitHub Actions (CI/CD)
+↓
+Docker Build
+↓
+Artifact Registry
+↓
+Google Kubernetes Engine
+↓
+IRIS Prediction API
+↓
+Horizontal Pod Autoscaler
+↓
+Cloud Monitoring & Cloud Logging
 
 ---
 
-# Docker
+# Technologies Used
 
-Build the Docker image
+- Python
+- FastAPI
+- Docker
+- Kubernetes (GKE)
+- Google Artifact Registry
+- GitHub Actions
+- Horizontal Pod Autoscaler
+- Google Cloud Monitoring
+- Google Cloud Logging
+- wrk
+
+---
+
+# Deployment
+
+Build Docker Image
 
 ```bash
 docker build -t iris-api .
 ```
 
-Run the container
+Run locally
 
 ```bash
 docker run -p 8000:8000 iris-api
 ```
 
-API URL
-
-```
-http://localhost:8000
-```
-
-Swagger UI
-
-```
-http://localhost:8000/docs
-```
-
----
-
-# Kubernetes Deployment
-
-Deploy the application
+Deploy
 
 ```bash
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 ```
 
-Verify deployment
+---
+
+# Horizontal Pod Autoscaler
+
+Created using
 
 ```bash
-kubectl get deployments
-kubectl get pods
-kubectl get services
+kubectl autoscale deployment iris-api \
+--cpu-percent=50 \
+--min=1 \
+--max=3
 ```
 
----
-
-# Docker Image
-
-The application image is stored in **Google Artifact Registry**.
-
-```
-us-central1-docker.pkg.dev/mlops-500009/iris-repo/iris-api
-```
-
----
-
-# GitHub Actions Continuous Deployment
-
-The CD pipeline automatically performs:
-
-* Checkout repository
-* Authenticate to Google Cloud using Workload Identity Federation (OIDC)
-* Configure Docker
-* Build Docker image
-* Push image to Google Artifact Registry
-* Retrieve GKE credentials
-* Update Kubernetes Deployment
-* Wait for successful rollout
-
-The workflow executes automatically whenever code is pushed to the `week_6` or `main` branch.
-
----
-
-# API Endpoints
-
-## Health Check
-
-```
-GET /
-```
-
-Response
-
-```json
-{
-  "message": "IRIS Prediction API is running."
-}
-```
-
----
-
-## Predict Species
-
-```
-POST /predict
-```
-
-Request
-
-```json
-{
-  "sepal_length": 5.1,
-  "sepal_width": 3.5,
-  "petal_length": 1.4,
-  "petal_width": 0.2
-}
-```
-
-Response
-
-```json
-{
-  "prediction": "setosa"
-}
-```
-
-Example
+Verification
 
 ```bash
-curl -X POST http://<EXTERNAL-IP>/predict \
--H "Content-Type: application/json" \
--d '{
-  "sepal_length":5.1,
-  "sepal_width":3.5,
-  "petal_length":1.4,
-  "petal_width":0.2
-}'
+kubectl get hpa
 ```
 
 ---
 
-# Continuous Deployment Workflow
+# Stress Testing
 
-1. Push code to GitHub.
-2. GitHub Actions starts automatically.
-3. Authenticate with Google Cloud.
-4. Build Docker image.
-5. Push image to Artifact Registry.
-6. Update the Kubernetes deployment.
-7. Kubernetes performs a rolling update.
-8. The latest API becomes available through the LoadBalancer.
+wrk was used to generate concurrent HTTP traffic.
 
----
+## POST Script
 
-# Pod vs Container
+```lua
+wrk.method = "POST"
 
-A **Docker container** is a lightweight package that contains an application along with all its dependencies.
+wrk.body = '{"sepal_length":5.1,"sepal_width":3.5,"petal_length":1.4,"petal_width":0.2}'
 
-A **Kubernetes Pod** is the smallest deployable unit in Kubernetes. A Pod can contain one or more containers that share networking and storage resources. Kubernetes schedules and manages Pods rather than individual containers, enabling scaling, self-healing, and rolling updates.
+wrk.headers["Content-Type"] = "application/json"
+```
 
 ---
 
-# Learning Outcomes
+## Test 1
 
-* Containerized an ML inference API using Docker.
-* Automated image builds with GitHub Actions.
-* Stored images in Google Artifact Registry.
-* Configured secure authentication using Workload Identity Federation.
-* Deployed the application on Google Kubernetes Engine.
-* Exposed the API using a Kubernetes LoadBalancer.
-* Implemented an end-to-end Continuous Deployment pipeline.
+1000 concurrent users
+
+```bash
+wrk -t4 -c1000 -d30s -s post.lua http://<EXTERNAL_IP>/predict
+```
+
+Observed
+
+- HPA scaled from 1 Pod to 3 Pods.
+- CPU utilization exceeded the target threshold.
+- Additional Pods were created automatically.
+- Service handled increased load better than the constrained setup.
 
 ---
 
-# Author
+## Test 2
 
-**Kapish Ashtankar**
+Single Replica Bottleneck
 
-IIT Madras BS Degree Programme
+HPA configuration
 
-Course: MLOps Weekly Assignment – Week 6
+```
+minReplicas = 1
+maxReplicas = 1
+```
+
+Stress Test
+
+```bash
+wrk -t4 -c2000 -d30s -s post.lua http://<EXTERNAL_IP>/predict
+```
+
+Observed
+
+- No additional Pods were created.
+- CPU became saturated.
+- High socket read/write errors occurred.
+- Throughput dropped significantly.
+- The single Pod became the performance bottleneck.
+
+---
+
+# Monitoring
+
+During stress testing the following GCP services were used.
+
+- Cloud Monitoring
+- Cloud Logging
+
+Observed Metrics
+
+- CPU Utilization
+- Memory Usage
+- Pod Scaling
+- Request Logs
+- Container Logs
+
+---
+
+# CI/CD
+
+GitHub Actions automatically performs
+
+- Checkout Repository
+- Authenticate to GCP
+- Build Docker Image
+- Push to Artifact Registry
+- Deploy to GKE
+- Wait for rollout
+- Install wrk
+- Execute stress testing
+
+---
+
+# Bottleneck Analysis
+
+Scenario 1
+
+- maxReplicas = 3
+- 1000 concurrent users
+
+Result
+
+- Pods scaled automatically.
+- Better throughput.
+- Lower request failures.
+
+Scenario 2
+
+- maxReplicas = 1
+- 2000 concurrent users
+
+Result
+
+- No autoscaling.
+- CPU saturation.
+- High socket errors.
+- Throughput degraded significantly.
+
+This demonstrates how Horizontal Pod Autoscaling improves service reliability under heavy load.
+
+---
+
+# Repository
+
+https://github.com/kapishash/21F3000371_MLOPS_WEEKLY_ASSIGNMENT
