@@ -494,5 +494,3 @@ git status
 ```
 
 ---
-
-This completes the Week 9 Explainability, Fairness, and Drift assignment.
