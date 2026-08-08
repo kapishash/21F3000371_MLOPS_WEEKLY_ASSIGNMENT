@@ -791,5 +791,3 @@ Monitoring
 ```
 
 to reduce the risk of ML-specific security threats.
-
-MLSecOps extends traditional DevSecOps principles to the complete ML lifecycle, protecting the system from data-level attacks through to model serving and inference.
