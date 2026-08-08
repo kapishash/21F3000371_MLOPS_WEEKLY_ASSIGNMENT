@@ -20,3 +20,5 @@ feature_repo/
 # Temporary scripts
 count.py
 prepare_data.py
+mlflow.db
+mlruns/
