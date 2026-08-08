@@ -22,3 +22,7 @@ count.py
 prepare_data.py
 mlflow.db
 mlruns/
+
+
+!data/mlsecops/
+!data/mlsecops/*.csv
