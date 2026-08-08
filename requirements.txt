@@ -8,3 +8,5 @@ dvc-gs
 google-cloud-storage
 fastapi
 uvicorn
+fairlearn
+shap
