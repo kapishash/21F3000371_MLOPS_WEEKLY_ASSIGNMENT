@@ -1,222 +1,198 @@
-# Integrating MLSecOps into the IRIS Pipeline (Week 8)
+# IRIS MLOps Pipeline — Week 9
 
-## Overview
+## Explainability, Fairness, and Drift Monitoring
 
-This assignment extends the IRIS machine learning pipeline with **MLSecOps (Machine Learning Security Operations)** practices.
+This week extends the IRIS machine learning pipeline with responsible ML practices covering:
 
-The objective is to understand security threats across the ML lifecycle and demonstrate a practical **data poisoning attack** against the IRIS classification dataset.
+* Explainability using SHAP
+* Fairness evaluation using Fairlearn
+* Data drift detection using statistical tests
+* ML model governance using a Model Card
 
-Four datasets were evaluated:
-
-* Clean dataset — 0% poisoning
-* 5% poisoned dataset
-* 10% poisoned dataset
-* 50% poisoned dataset
-
-Each dataset was used to train an IRIS classification model, and the experiments were tracked using **MLflow**.
-
-The assignment demonstrates how compromised training data can affect model performance and why data validation, provenance tracking, anomaly detection, and quality gates are important in production ML systems.
+The work is implemented on the `week_9` branch of the IRIS MLOps repository.
 
 ---
 
-# Objectives
+## Week 9 Objectives
 
 The main objectives of this assignment are:
 
-* Understand major ML security threat vectors
-* Simulate data poisoning attacks
-* Generate poisoned IRIS datasets at different severity levels
-* Train models using clean and poisoned datasets
-* Track experiments using MLflow
-* Compare model performance across poisoning levels
-* Analyze the impact of data quality degradation
-* Identify mitigation strategies for production ML systems
-* Understand the relationship between data quantity and data quality
+1. Introduce a sensitive `location` attribute into the IRIS dataset.
+2. Evaluate fairness across location groups using Fairlearn.
+3. Generate SHAP explanations for the IRIS classifier.
+4. Analyze the factors influencing Virginica predictions.
+5. Simulate production data drift.
+6. Detect feature drift using the Kolmogorov-Smirnov statistical test.
+7. Document the model using a Model Card.
 
 ---
 
-# MLSecOps
-
-MLSecOps applies security principles throughout the machine learning lifecycle.
-
-The major attack surfaces considered in this assignment are:
+# Project Structure
 
 ```text
-Data Ingestion
-      |
-      v
-Data Poisoning
-      |
-      v
-Model Training
-      |
-      v
-Model Artifacts
-      |
-      v
-Model Extraction
-      |
-      v
-Inference API
-      |
-      v
-Adversarial Examples
-      |
-      v
-LLM / Text Interfaces
-      |
-      v
-Prompt Injection
+21F3000371_MLOPS_WEEKLY_ASSIGNMENT
+│
+├── data/
+│   ├── iris.csv
+│   ├── iris.csv.dvc
+│   ├── iris1.csv
+│   └── week9/
+│       └── iris_with_location.csv
+│
+├── src/
+│   ├── train.py
+│   ├── inference.py
+│   ├── poison_data.py
+│   ├── train_mlsecops.py
+│   ├── add_location.py
+│   ├── fairness.py
+│   ├── explainability.py
+│   └── drift.py
+│
+├── outputs/
+│   └── drift/
+│       ├── iris_production.csv
+│       ├── sepal_length_drift.png
+│       ├── sepal_width_drift.png
+│       ├── petal_length_drift.png
+│       └── petal_width_drift.png
+│
+├── MODEL_CARD.md
+├── requirements.txt
+├── Dockerfile
+├── deployment.yaml
+├── service.yaml
+├── hpa.yaml
+└── README.md
 ```
 
 ---
 
-# ML Security Threat Vectors
+# Task 1 — Introduce Location Attribute
 
-## 1. Data Poisoning
+A new `location` column was added to the IRIS dataset.
 
-### Target Stage
-
-Data ingestion and model training.
-
-### Description
-
-Data poisoning occurs when an attacker intentionally modifies training data to degrade model performance or influence model behavior.
-
-In this assignment, poisoning is simulated by replacing selected IRIS samples with:
-
-* Random feature values
-* Random class labels
-
-Three poisoning levels were evaluated:
+The value is randomly assigned as either:
 
 ```text
-5%
-10%
-50%
+0
+1
 ```
 
-### Example Scenario
+The location attribute is used only for fairness analysis and is not included as a model training feature.
 
-An attacker gains access to a training data pipeline and modifies a portion of the dataset before model training.
+## Dataset
 
-The resulting model learns from incorrect patterns and may produce incorrect predictions.
-
-### Mitigation
-
-Possible defenses include:
-
-* Data validation
-* Statistical profiling
-* Anomaly detection
-* Data provenance tracking
-* Schema validation
-* Dataset versioning
-* Quality gates before training
-
----
-
-# 2. Adversarial Examples
-
-### Target Stage
-
-Model inference.
-
-### Description
-
-Adversarial examples are inputs deliberately modified to cause a trained model to make an incorrect prediction.
-
-Unlike data poisoning, the attacker does not necessarily modify the training dataset.
-
-Instead, the attack happens during inference.
-
-### Example
-
-A small change to the numerical features supplied to the IRIS API could potentially cause a model to predict the wrong class.
-
-### Mitigation
-
-Possible approaches include:
-
-* Input validation
-* Range checking
-* Outlier detection
-* Adversarial robustness testing
-* Rate limiting
-* Monitoring unusual inference patterns
-
----
-
-# 3. Model Extraction
-
-### Target Stage
-
-Model serving and inference.
-
-### Description
-
-Model extraction occurs when an attacker repeatedly queries a deployed model and attempts to reconstruct its behavior.
-
-For example, an attacker could send a large number of carefully selected requests to a prediction API and use the responses to build a substitute model.
-
-### Mitigation
-
-Possible defenses include:
-
-* Rate limiting
-* Authentication
-* Query monitoring
-* Access controls
-* Limiting prediction information
-* Logging inference requests
-
----
-
-# 4. Prompt Injection
-
-### Target Stage
-
-LLM or natural-language inference systems.
-
-### Description
-
-Prompt injection occurs when malicious instructions are included in user input to manipulate an AI system into ignoring its intended behavior.
-
-Although the current IRIS pipeline is not an LLM application, prompt injection is an important MLSecOps threat for systems that accept natural-language input.
-
-### Mitigation
-
-Possible approaches include:
-
-* Input filtering
-* Prompt boundary enforcement
-* Instruction hierarchy
-* Output validation
-* Access control
-* Monitoring suspicious inputs
-
----
-
-# Dataset
-
-The project uses the IRIS classification dataset.
-
-The dataset contains four numerical features:
-
-| Feature      | Description  |
-| ------------ | ------------ |
-| sepal_length | Sepal length |
-| sepal_width  | Sepal width  |
-| petal_length | Petal length |
-| petal_width  | Petal width  |
-
-Target variable:
+The resulting dataset contains:
 
 ```text
-species
+190 samples
 ```
 
-Classes:
+The location distribution was:
+
+```text
+location
+0    93
+1    97
+```
+
+The resulting file is:
+
+```text
+data/week9/iris_with_location.csv
+```
+
+## Generate the Dataset
+
+Run:
+
+```bash
+python src/add_location.py
+```
+
+Expected output:
+
+```text
+Dataset created successfully
+Total samples: 190
+
+Location distribution:
+location
+0    93
+1    97
+```
+
+---
+
+# Task 2 — Fairness Evaluation
+
+Fairness was evaluated using:
+
+```text
+Fairlearn
+```
+
+The `MetricFrame` API was used to calculate performance separately for location groups `0` and `1`.
+
+The following metrics were evaluated:
+
+* Accuracy
+* Precision
+* Recall
+
+The location attribute was not used during model training.
+
+## Run Fairness Analysis
+
+```bash
+python src/fairness.py
+```
+
+## Results
+
+Overall metrics:
+
+```text
+Accuracy : 1.0
+Precision: 1.0
+Recall   : 1.0
+```
+
+Fairlearn MetricFrame:
+
+```text
+          accuracy  precision  recall
+location
+0              1.0        1.0     1.0
+1              1.0        1.0     1.0
+```
+
+Metric differences:
+
+```text
+accuracy     0.0
+precision    0.0
+recall       0.0
+```
+
+Therefore, no measurable performance difference was observed between the two randomly assigned location groups in this experiment.
+
+Because the location attribute was randomly generated, this experiment demonstrates the fairness auditing process rather than proving real-world demographic fairness.
+
+---
+
+# Task 3 — Model Explainability Using SHAP
+
+Model explainability was implemented using:
+
+```text
+SHAP
+```
+
+SHAP provides feature-level explanations for model predictions.
+
+The analysis generates explanations for the IRIS classification model and focuses on the three classes:
 
 ```text
 setosa
@@ -224,572 +200,299 @@ versicolor
 virginica
 ```
 
-The clean dataset contains:
+The four model features are:
 
 ```text
-190 samples
+sepal_length
+sepal_width
+petal_length
+petal_width
 ```
 
-excluding the header.
+## SHAP Interpretation
 
----
+For the Virginica class:
 
-# Data Poisoning Simulation
+* Positive SHAP values push the prediction toward Virginica.
+* Negative SHAP values push the prediction away from Virginica.
+* Red points represent high feature values.
+* Blue points represent low feature values.
+* A point on the right side of the plot indicates a positive contribution toward Virginica.
+* A point on the left side indicates a negative contribution.
 
-The poisoning attack was implemented using:
+A cluster of red points on the right indicates that high values of that feature provide evidence supporting the Virginica prediction.
 
-```text
-src/poison_data.py
-```
-
-For each poisoning level, a percentage of the dataset samples is selected.
-
-For every selected sample:
-
-1. The four numerical features are replaced with randomly generated values.
-2. The original class label is replaced with a randomly selected class.
-3. The modified dataset is saved as a separate CSV file.
-
-The original clean dataset is preserved as the baseline.
-
----
-
-# Poisoning Levels
-
-Four dataset variants were created:
-
-| Dataset      | Poisoning Level | Modified Samples |
-| ------------ | --------------: | ---------------: |
-| Clean        |              0% |                0 |
-| Poisoned 5%  |              5% |                9 |
-| Poisoned 10% |             10% |               19 |
-| Poisoned 50% |             50% |               95 |
-
-The poisoning script produced the following files:
-
-```text
-data/mlsecops/
-├── iris_clean.csv
-├── iris_poisoned_5.csv
-├── iris_poisoned_10.csv
-└── iris_poisoned_50.csv
-```
-
-Each dataset contains 190 samples.
-
-Including the header, each CSV contains:
-
-```text
-191 lines
-```
-
----
-
-# Poisoning Script
-
-The poisoning process is implemented in:
-
-```text
-src/poison_data.py
-```
-
-It generates the three poisoned datasets automatically.
+## Generate SHAP Plots
 
 Run:
 
 ```bash
-python src/poison_data.py
+python src/explainability.py
 ```
 
-Expected output:
-
-```text
-Clean dataset: 190 samples
-Classes: ['setosa', 'versicolor', 'virginica']
-
-5% poisoning: 9 samples modified
-10% poisoning: 19 samples modified
-50% poisoning: 95 samples modified
-```
+The generated plots can be used during the screencast to explain the model's decision-making process.
 
 ---
 
-# Model Training
+# Task 4 — Data Drift Detection
 
-The MLsecOps training workflow is implemented in:
+Production data was simulated by shifting the feature distributions of the IRIS dataset.
 
-```text
-src/train_mlsecops.py
-```
+The original training distribution was compared against the simulated production distribution.
 
-The training process:
-
-1. Loads a dataset variant.
-2. Splits the data into training and evaluation sets.
-3. Trains a classification model.
-4. Generates predictions.
-5. Calculates evaluation metrics.
-6. Logs the experiment to MLflow.
-7. Records the poisoning level as an MLflow parameter.
-
-The four experiments correspond to:
+The:
 
 ```text
-0% poisoning
-5% poisoning
-10% poisoning
-50% poisoning
+Kolmogorov-Smirnov (KS) test
 ```
 
----
+was used to detect statistical differences between the distributions.
 
-# MLflow Experiment Tracking
-
-MLflow was used to track the poisoning experiments.
-
-Experiment name:
-
-```text
-iris_mlsecops_poisoning
-```
-
-The MLflow backend was configured using SQLite:
-
-```text
-sqlite:///mlflow.db
-```
-
-The MLflow UI was started using:
+## Run Drift Analysis
 
 ```bash
-mlflow ui \
-  --backend-store-uri sqlite:///mlflow.db \
-  --host 0.0.0.0 \
-  --port 5000
+python src/drift.py
 ```
 
-The experiment comparison UI was used to compare model performance across all poisoning levels.
+## Drift Results
+
+The analysis produced the following results:
+
+| Feature      | KS Statistic |  P-value | Result         |
+| ------------ | -----------: | -------: | -------------- |
+| sepal_length |       0.2211 | 0.000176 | DRIFT DETECTED |
+| sepal_width  |       0.3474 | 0.000000 | DRIFT DETECTED |
+| petal_length |       0.3263 | 0.000000 | DRIFT DETECTED |
+| petal_width  |       0.2684 | 0.000002 | DRIFT DETECTED |
+
+All four features showed statistically significant distribution changes.
+
+The drift plots are generated in:
+
+```text
+outputs/drift/
+```
+
+Generated files include:
+
+```text
+iris_production.csv
+sepal_length_drift.png
+sepal_width_drift.png
+petal_length_drift.png
+petal_width_drift.png
+```
 
 ---
 
-# Metrics Tracked
+# Data Drift vs Concept Drift
 
-For every experiment, the following metrics were tracked:
+## Data Drift
 
-* Accuracy
-* Precision
-* Recall
-* F1 Score
+Data drift occurs when the distribution of input features changes.
 
-The poisoning level was logged as an experiment parameter.
+For example:
 
-This allows the effect of increasing data corruption to be compared systematically.
+```text
+Training data → Normal petal length distribution
+
+Production data → Shifted petal length distribution
+```
+
+Statistical tests such as the KS test can be used to detect this change.
+
+## Concept Drift
+
+Concept drift occurs when the relationship between the features and target changes.
+
+For example, the same feature values may begin corresponding to different classes in production.
+
+Concept drift generally requires monitoring model predictions against ground-truth labels.
 
 ---
 
-# MLflow Experiment Comparison
+# Task 5 — Model Card and Governance
 
-The MLflow experiment contains four runs:
+A Model Card was created to document the IRIS classifier.
+
+The file is:
 
 ```text
-Clean
-5% Poisoning
-10% Poisoning
-50% Poisoning
+MODEL_CARD.md
 ```
 
-The MLflow comparison interface allows the metrics of all four runs to be viewed together.
+The Model Card contains:
 
-The comparison helps determine:
+* Model purpose
+* Intended use
+* Training data
+* Model information
+* Overall performance
+* Fairness results
+* Explainability information
+* Drift results
+* Limitations
+* Fairness considerations
+* Monitoring recommendations
+* Governance considerations
 
-* When model degradation begins
-* Which metrics change first
-* How severe the degradation becomes
-* Whether the model continues learning meaningful patterns under heavy corruption
+The Model Card improves transparency and accountability for the ML system.
 
 ---
 
-# Analysis of Poisoning Impact
-
-The clean dataset provides the baseline model performance.
-
-At low poisoning levels, the model may still learn useful patterns because most of the training data remains clean.
-
-As poisoning increases:
+# Week 9 Workflow
 
 ```text
-Clean data ratio
-       |
-       v
-100% → 95% → 90% → 50%
-       |
-       v
-Increasing data corruption
+                 IRIS Dataset
+                      |
+                      v
+            Add Location Attribute
+                      |
+                      v
+             Train ML Classifier
+                      |
+          ┌───────────┼───────────┐
+          |           |           |
+          v           v           v
+      Fairness     SHAP       Drift
+      Analysis   Explainability Detection
+          |           |           |
+          v           v           v
+       Fairlearn    SHAP        KS Test
+          |           |           |
+          └───────────┼───────────┘
+                      |
+                      v
+                 Model Card
+                      |
+                      v
+                ML Governance
 ```
-
-The 50% poisoning scenario represents a severe attack because half of the training samples have been replaced with randomly generated features and labels.
-
-At this level, the training data contains a large amount of incorrect information, making it significantly more difficult for the model to learn the genuine relationships between IRIS features and species.
-
-The MLflow comparison provides empirical evidence for evaluating this degradation.
 
 ---
 
-# Why Data Quality Matters
+# Key Findings
 
-Increasing the amount of training data does not automatically solve a data-quality problem.
+## Fairness
 
-Consider a dataset containing:
-
-```text
-1000 samples
-```
-
-If 10% of the data is poisoned:
+The Fairlearn analysis showed identical performance for location groups `0` and `1`:
 
 ```text
-900 clean
-100 poisoned
+Accuracy  = 1.00
+Precision = 1.00
+Recall    = 1.00
 ```
 
-Adding more data is useful only when the additional data is trustworthy.
-
-For example, adding another 1000 poisoned samples would make the situation worse rather than better.
-
-Therefore:
+The metric difference between the groups was:
 
 ```text
-More Data ≠ Better Model
+0.00
 ```
 
-when the additional data is unreliable.
-
-The focus should first be on ensuring data quality and provenance.
+for all three metrics.
 
 ---
 
-# Data Quantity vs Data Quality
+## Explainability
 
-The relationship can be summarized as:
+SHAP was used to understand how the four flower measurements contribute to classification.
 
-```text
-Clean Data
-    |
-    v
-Reliable Training Signal
-    |
-    v
-Better Model Learning
-```
+For Virginica predictions:
 
-Whereas:
-
-```text
-Poisoned Data
-    |
-    v
-Incorrect Training Signal
-    |
-    v
-Model Degradation
-```
-
-As the poisoned-data ratio increases, the amount of trustworthy information available to the model decreases.
-
-For a fixed total dataset size:
-
-| Poisoning | Clean Ratio |
-| --------: | ----------: |
-|        0% |        100% |
-|        5% |         95% |
-|       10% |         90% |
-|       50% |         50% |
-
-Therefore, when data quality is compromised, the required total dataset size may need to increase to maintain a sufficient amount of clean training data.
-
-However, simply collecting more data is not an effective mitigation if the new data can also be poisoned.
+* Positive SHAP values support Virginica.
+* Negative SHAP values move predictions away from Virginica.
+* High feature values are represented by red points.
+* Low feature values are represented by blue points.
 
 ---
 
-# Task 5: Mitigation Strategies
+## Drift
 
-A production ML pipeline should introduce security controls before corrupted data reaches model training.
+All four monitored features showed statistically significant drift:
 
-## 1. Statistical Validation
+```text
+sepal_length  → Drift detected
+sepal_width   → Drift detected
+petal_length  → Drift detected
+petal_width   → Drift detected
+```
 
-Monitor:
+This indicates that the simulated production distribution differs from the original training distribution.
 
-* Mean
-* Median
-* Standard deviation
+---
+
+# Limitations
+
+This experiment has several limitations:
+
+1. The IRIS dataset is small.
+2. The location attribute is randomly generated.
+3. Location does not represent an actual demographic group.
+4. The fairness experiment therefore demonstrates the auditing methodology rather than real-world demographic fairness.
+5. The production drift was artificially simulated.
+6. Detecting feature drift does not automatically mean that model accuracy has decreased.
+7. Concept drift requires ground-truth labels and performance monitoring.
+
+---
+
+# Production Recommendations
+
+A production ML system should continuously monitor:
+
 * Feature distributions
-* Class distributions
+* Model performance
+* Fairness metrics
+* Prediction distributions
+* Data quality
+* Training-data provenance
+* Model versions
 
-Unexpected distribution changes can indicate data corruption.
+When significant drift is detected, the team should investigate the cause before automatically retraining the model.
 
----
+Fairness audits should also be performed periodically across relevant groups.
 
-## 2. Anomaly Detection
-
-Outlier detection can identify samples that significantly differ from the expected feature distribution.
-
-For example:
-
-```text
-Normal IRIS feature range
-          |
-          v
-Expected samples
-          |
-          X
-Unexpected extreme values
-```
-
-Suspicious samples can be flagged for investigation.
+SHAP or other explainability methods can be used to monitor whether the model's decision patterns change over time.
 
 ---
 
-## 3. Data Provenance Tracking
+# Week 9 Commands
 
-Every dataset should have information about:
-
-* Source
-* Creation time
-* Version
-* Processing history
-* Responsible pipeline
-* Hash/checksum
-
-DVC can help maintain dataset versions and reproducibility.
-
----
-
-## 4. Schema Enforcement
-
-The pipeline should verify that incoming data has:
-
-* Expected columns
-* Correct data types
-* Valid feature ranges
-* Valid target classes
-* No unexpected missing values
-
-For example:
-
-```text
-sepal_length → numerical
-sepal_width  → numerical
-petal_length → numerical
-petal_width  → numerical
-species      → valid class
-```
-
----
-
-## 5. Data Quality Gates
-
-Training should not begin automatically if validation fails.
-
-A secure pipeline can follow:
-
-```text
-Data Ingestion
-      |
-      v
-Schema Validation
-      |
-      v
-Statistical Validation
-      |
-      v
-Anomaly Detection
-      |
-      v
-Quality Gate
-      |
-   Pass / Fail
-      |
-      v
-Model Training
-```
-
-This prevents suspicious datasets from entering the training stage.
-
----
-
-# Production MLSecOps Architecture
-
-A secure ML pipeline can be structured as:
-
-```text
-             Data Source
-                 |
-                 v
-          Data Validation
-                 |
-        -------------------
-        |                 |
-      Valid             Invalid
-        |                 |
-        v                 v
-   Data Versioning     Reject / Alert
-        |
-        v
-   Model Training
-        |
-        v
-   Model Validation
-        |
-        v
-    Model Registry
-        |
-        v
-    Deployment
-        |
-        v
-   Inference API
-        |
-        v
- Monitoring & Logging
-```
-
-Security controls should exist at every stage.
-
----
-
-# Repository Structure
-
-```text
-21F3000371_MLOPS_WEEKLY_ASSIGNMENT/
-│
-├── data/
-│   ├── iris.csv
-│   ├── iris.csv.dvc
-│   └── mlsecops/
-│       ├── iris_clean.csv
-│       ├── iris_poisoned_5.csv
-│       ├── iris_poisoned_10.csv
-│       └── iris_poisoned_50.csv
-│
-├── src/
-│   ├── train.py
-│   ├── inference.py
-│   ├── poison_data.py
-│   └── train_mlsecops.py
-│
-├── tests/
-│   ├── test_data.py
-│   └── test_model.py
-│
-├── models/
-│   └── model.pkl
-│
-├── artifacts/
-│   ├── model.pkl
-│   ├── eval.csv
-│   └── metrics.txt
-│
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── cd.yml
-│
-├── deployment.yaml
-├── service.yaml
-├── hpa.yaml
-├── Dockerfile
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
-
----
-
-
-
-# Reproducing the Experiment
-
-## 1. Generate Poisoned Datasets
+## Create Location Dataset
 
 ```bash
-python src/poison_data.py
+python src/add_location.py
 ```
 
----
-
-## 2. Run MLsecOps Training
+## Run Fairness Analysis
 
 ```bash
-python src/train_mlsecops.py
+python src/fairness.py
 ```
 
-The training script evaluates the clean and poisoned datasets and records the experiments in MLflow.
-
----
-
-## 3. Start MLflow
+## Generate SHAP Explanations
 
 ```bash
-mlflow ui \
-  --backend-store-uri sqlite:///mlflow.db \
-  --host 0.0.0.0 \
-  --port 5000
+python src/explainability.py
 ```
 
-Open the MLflow interface and select:
+## Detect Data Drift
 
-```text
-iris_mlsecops_poisoning
+```bash
+python src/drift.py
 ```
 
-Compare the four runs:
+## Check Generated Drift Files
 
-```text
-0%
-5%
-10%
-50%
+```bash
+ls -lh outputs/drift/
+```
+
+## Check Git Status
+
+```bash
+git status
 ```
 
 ---
 
-
-# Conclusion
-
-This assignment demonstrates the importance of security throughout the machine learning lifecycle.
-
-A data poisoning attack was simulated on the IRIS dataset at:
-
-```text
-5%
-10%
-50%
-```
-
-corruption levels, with the clean dataset used as the baseline.
-
-MLflow was used to track and compare the resulting model experiments using accuracy, precision, recall, and F1 score.
-
-The experiment demonstrates that model reliability depends not only on the amount of training data but also on the quality and trustworthiness of that data.
-
-A production ML pipeline should therefore combine:
-
-```text
-Data Validation
-+
-Data Provenance
-+
-Anomaly Detection
-+
-Schema Enforcement
-+
-Quality Gates
-+
-Model Validation
-+
-Monitoring
-```
-
-to reduce the risk of ML-specific security threats.
-
-MLSecOps extends traditional DevSecOps principles to the complete ML lifecycle, protecting the system from data-level attacks through to model serving and inference.
+This completes the Week 9 Explainability, Fairness, and Drift assignment.
