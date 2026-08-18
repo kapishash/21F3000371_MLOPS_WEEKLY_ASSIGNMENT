@@ -22,3 +22,8 @@ count.py
 prepare_data.py
 mlflow.db
 mlruns/
+
+
+
+# Keep Week 10 evaluation evidence
+!data/week10/week10_evaluation_results.csv
