@@ -1,199 +1,83 @@
-# Integrating MLSecOps into the IRIS Pipeline (Week 8)
+# Week 10 — LLMOps: Fine-Tuning and Evaluation of Gemini Models
 
 ## Overview
 
-This assignment extends the IRIS machine learning pipeline with **MLSecOps (Machine Learning Security Operations)** practices.
+This assignment extends the IRIS machine learning pipeline into an **LLMOps workflow** using Google Cloud Vertex AI / Agent Platform.
 
-The objective is to understand security threats across the ML lifecycle and demonstrate a practical **data poisoning attack** against the IRIS classification dataset.
+The objective is to fine-tune a Gemini model for IRIS species classification and compare two different ways of representing the same training data:
 
-Four datasets were evaluated:
+* **V1 — Raw Feature Representation**
+* **V2 — Natural Language Description**
 
-* Clean dataset — 0% poisoning
-* 5% poisoned dataset
-* 10% poisoned dataset
-* 50% poisoned dataset
+Both versions use supervised fine-tuning with LoRA. The models are evaluated on the **same held-out test set** using:
 
-Each dataset was used to train an IRIS classification model, and the experiments were tracked using **MLflow**.
+* Accuracy
+* Per-class precision
+* Per-class recall
+* Format compliance rate
 
-The assignment demonstrates how compromised training data can affect model performance and why data validation, provenance tracking, anomaly detection, and quality gates are important in production ML systems.
+The assignment demonstrates how data representation can affect the behavior of a fine-tuned LLM, including an LLM-specific issue that traditional classifiers do not normally have: **output-format compliance**.
 
 ---
 
 # Objectives
 
-The main objectives of this assignment are:
+The main objectives of Week 10 are:
 
-* Understand major ML security threat vectors
-* Simulate data poisoning attacks
-* Generate poisoned IRIS datasets at different severity levels
-* Train models using clean and poisoned datasets
-* Track experiments using MLflow
-* Compare model performance across poisoning levels
-* Analyze the impact of data quality degradation
-* Identify mitigation strategies for production ML systems
-* Understand the relationship between data quantity and data quality
+* Understand LLMOps and supervised fine-tuning
+* Prepare structured IRIS data for Gemini fine-tuning
+* Compare raw feature prompts with natural-language prompts
+* Create a held-out train/test split
+* Convert datasets into Gemini supervised-tuning JSONL format
+* Fine-tune Gemini models using LoRA
+* Deploy the tuned models on Vertex AI
+* Run predictions against an independent test set
+* Calculate accuracy, precision, recall, and format compliance
+* Compare V1 and V2
+* Analyze the effect of data representation on LLM behavior
+* Demonstrate reproducible model evaluation
 
 ---
 
-# MLSecOps
+# LLMOps Workflow
 
-MLSecOps applies security principles throughout the machine learning lifecycle.
-
-The major attack surfaces considered in this assignment are:
+The Week 10 workflow can be summarized as:
 
 ```text
-Data Ingestion
-      |
-      v
-Data Poisoning
-      |
-      v
-Model Training
-      |
-      v
-Model Artifacts
-      |
-      v
-Model Extraction
-      |
-      v
-Inference API
-      |
-      v
-Adversarial Examples
-      |
-      v
-LLM / Text Interfaces
-      |
-      v
-Prompt Injection
+IRIS Dataset
+     |
+     v
+Train/Test Split
+     |
+     +----------------------+
+     |                      |
+     v                      v
+V1 Raw Features       V2 Natural Language
+     |                      |
+     v                      v
+Gemini JSONL           Gemini JSONL
+     |                      |
+     v                      v
+LoRA Fine-Tuning       LoRA Fine-Tuning
+     |                      |
+     v                      v
+Vertex AI Models       Vertex AI Models
+     |                      |
+     +----------+-----------+
+                |
+                v
+       Held-Out Test Set
+                |
+                v
+        Model Evaluation
+                |
+                v
+ Accuracy / Precision / Recall
+       / Format Compliance
+                |
+                v
+        V1 vs V2 Comparison
 ```
-
----
-
-# ML Security Threat Vectors
-
-## 1. Data Poisoning
-
-### Target Stage
-
-Data ingestion and model training.
-
-### Description
-
-Data poisoning occurs when an attacker intentionally modifies training data to degrade model performance or influence model behavior.
-
-In this assignment, poisoning is simulated by replacing selected IRIS samples with:
-
-* Random feature values
-* Random class labels
-
-Three poisoning levels were evaluated:
-
-```text
-5%
-10%
-50%
-```
-
-### Example Scenario
-
-An attacker gains access to a training data pipeline and modifies a portion of the dataset before model training.
-
-The resulting model learns from incorrect patterns and may produce incorrect predictions.
-
-### Mitigation
-
-Possible defenses include:
-
-* Data validation
-* Statistical profiling
-* Anomaly detection
-* Data provenance tracking
-* Schema validation
-* Dataset versioning
-* Quality gates before training
-
----
-
-# 2. Adversarial Examples
-
-### Target Stage
-
-Model inference.
-
-### Description
-
-Adversarial examples are inputs deliberately modified to cause a trained model to make an incorrect prediction.
-
-Unlike data poisoning, the attacker does not necessarily modify the training dataset.
-
-Instead, the attack happens during inference.
-
-### Example
-
-A small change to the numerical features supplied to the IRIS API could potentially cause a model to predict the wrong class.
-
-### Mitigation
-
-Possible approaches include:
-
-* Input validation
-* Range checking
-* Outlier detection
-* Adversarial robustness testing
-* Rate limiting
-* Monitoring unusual inference patterns
-
----
-
-# 3. Model Extraction
-
-### Target Stage
-
-Model serving and inference.
-
-### Description
-
-Model extraction occurs when an attacker repeatedly queries a deployed model and attempts to reconstruct its behavior.
-
-For example, an attacker could send a large number of carefully selected requests to a prediction API and use the responses to build a substitute model.
-
-### Mitigation
-
-Possible defenses include:
-
-* Rate limiting
-* Authentication
-* Query monitoring
-* Access controls
-* Limiting prediction information
-* Logging inference requests
-
----
-
-# 4. Prompt Injection
-
-### Target Stage
-
-LLM or natural-language inference systems.
-
-### Description
-
-Prompt injection occurs when malicious instructions are included in user input to manipulate an AI system into ignoring its intended behavior.
-
-Although the current IRIS pipeline is not an LLM application, prompt injection is an important MLSecOps threat for systems that accept natural-language input.
-
-### Mitigation
-
-Possible approaches include:
-
-* Input filtering
-* Prompt boundary enforcement
-* Instruction hierarchy
-* Output validation
-* Access control
-* Monitoring suspicious inputs
 
 ---
 
@@ -203,12 +87,12 @@ The project uses the IRIS classification dataset.
 
 The dataset contains four numerical features:
 
-| Feature      | Description  |
-| ------------ | ------------ |
-| sepal_length | Sepal length |
-| sepal_width  | Sepal width  |
-| petal_length | Petal length |
-| petal_width  | Petal width  |
+| Feature | Description |
+| --- | --- |
+| `sepal_length` | Sepal length in cm |
+| `sepal_width` | Sepal width in cm |
+| `petal_length` | Petal length in cm |
+| `petal_width` | Petal width in cm |
 
 Target variable:
 
@@ -224,572 +108,894 @@ versicolor
 virginica
 ```
 
-The clean dataset contains:
+The working dataset contains:
 
 ```text
 190 samples
 ```
 
-excluding the header.
+excluding the CSV header.
 
 ---
 
-# Data Poisoning Simulation
+# Week 10 Train/Test Split
 
-The poisoning attack was implemented using:
+To avoid evaluating the tuned models on their training examples, a held-out test set was created.
 
-```text
-src/poison_data.py
-```
-
-For each poisoning level, a percentage of the dataset samples is selected.
-
-For every selected sample:
-
-1. The four numerical features are replaced with randomly generated values.
-2. The original class label is replaced with a randomly selected class.
-3. The modified dataset is saved as a separate CSV file.
-
-The original clean dataset is preserved as the baseline.
-
----
-
-# Poisoning Levels
-
-Four dataset variants were created:
-
-| Dataset      | Poisoning Level | Modified Samples |
-| ------------ | --------------: | ---------------: |
-| Clean        |              0% |                0 |
-| Poisoned 5%  |              5% |                9 |
-| Poisoned 10% |             10% |               19 |
-| Poisoned 50% |             50% |               95 |
-
-The poisoning script produced the following files:
+The split contains:
 
 ```text
-data/mlsecops/
-├── iris_clean.csv
-├── iris_poisoned_5.csv
-├── iris_poisoned_10.csv
-└── iris_poisoned_50.csv
+Total samples: 190
+Training samples: 152
+Test samples: 38
 ```
 
-Each dataset contains 190 samples.
+The class distributions are:
 
-Including the header, each CSV contains:
+## Training Set
+
+| Species | Samples |
+| --- | ---: |
+| setosa | 50 |
+| versicolor | 52 |
+| virginica | 50 |
+| **Total** | **152** |
+
+## Test Set
+
+| Species | Samples |
+| --- | ---: |
+| setosa | 12 |
+| versicolor | 13 |
+| virginica | 13 |
+| **Total** | **38** |
+
+The test set is kept separate from the fine-tuning data and is used only for final evaluation.
+
+The split was created using:
 
 ```text
-191 lines
+src/create_week10_split.py
 ```
-
----
-
-# Poisoning Script
-
-The poisoning process is implemented in:
-
-```text
-src/poison_data.py
-```
-
-It generates the three poisoned datasets automatically.
 
 Run:
 
 ```bash
-python src/poison_data.py
+python src/create_week10_split.py
+```
+
+Output:
+
+```text
+data/week10/train.csv
+data/week10/test.csv
+```
+
+---
+
+# Data Representation
+
+Two representations of the same IRIS information were created.
+
+The purpose is to investigate whether the way information is presented to an LLM affects its fine-tuned behavior.
+
+---
+
+# V1 — Raw Feature Representation
+
+V1 represents the input directly as structured feature-value pairs.
+
+Example:
+
+```text
+sepal_length: 6.3, sepal_width: 3.3, petal_length: 4.7, petal_width: 1.6
 ```
 
 Expected output:
 
 ```text
-Clean dataset: 190 samples
-Classes: ['setosa', 'versicolor', 'virginica']
+versicolor
+```
 
-5% poisoning: 9 samples modified
-10% poisoning: 19 samples modified
-50% poisoning: 95 samples modified
+This representation is concise and closely resembles a traditional tabular ML input.
+
+The V1 dataset was generated using:
+
+```text
+src/prepare_llm_data.py
+src/convert_v1_to_gemini.py
+```
+
+The final Gemini training format is:
+
+```json
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "sepal_length: 6.3, sepal_width: 3.3, petal_length: 4.7, petal_width: 1.6"
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": "versicolor"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ---
 
-# Model Training
+# V2 — Natural Language Description
 
-The MLsecOps training workflow is implemented in:
+V2 converts the same numerical features into a natural-language description.
+
+Example:
 
 ```text
-src/train_mlsecops.py
+A flower specimen has a sepal length of 6.3 cm,
+sepal width of 3.3 cm, petal length of 4.7 cm,
+and petal width of 1.6 cm. Identify the iris species.
 ```
 
-The training process:
-
-1. Loads a dataset variant.
-2. Splits the data into training and evaluation sets.
-3. Trains a classification model.
-4. Generates predictions.
-5. Calculates evaluation metrics.
-6. Logs the experiment to MLflow.
-7. Records the poisoning level as an MLflow parameter.
-
-The four experiments correspond to:
+Expected output:
 
 ```text
-0% poisoning
-5% poisoning
-10% poisoning
-50% poisoning
+This is Iris versicolor.
+```
+
+This representation is more natural for a language model because the input resembles normal language rather than a raw feature vector.
+
+The V2 dataset was generated using:
+
+```text
+src/prepare_llm_data.py
+src/convert_v2_to_gemini.py
+```
+
+The final Gemini training format is:
+
+```json
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "A flower specimen has a sepal length of 6.3 cm, sepal width of 3.3 cm, petal length of 4.7 cm, and petal width of 1.6 cm. Identify the iris species."
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": "This is Iris versicolor."
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ---
 
-# MLflow Experiment Tracking
+# Why Two Representations?
 
-MLflow was used to track the poisoning experiments.
+The underlying data is identical.
 
-Experiment name:
-
-```text
-iris_mlsecops_poisoning
-```
-
-The MLflow backend was configured using SQLite:
+Only the input/output representation changes.
 
 ```text
-sqlite:///mlflow.db
+Same IRIS data
+      |
+      +------------------------+
+      |                        |
+      v                        v
+V1: Raw Features       V2: Natural Language
+      |                        |
+      v                        v
+Structured Input        Linguistic Input
 ```
 
-The MLflow UI was started using:
+This makes the comparison useful because differences in model behavior can be associated with the representation rather than with a completely different dataset.
+
+---
+
+# Gemini Fine-Tuning
+
+The base model used for the assignment is:
+
+```text
+gemini-2.5-flash
+```
+
+Fine-tuning method:
+
+```text
+Supervised Fine-Tuning
+```
+
+Tuning mode:
+
+```text
+LoRA
+```
+
+LoRA is a parameter-efficient fine-tuning technique that trains a smaller set of adapter parameters rather than updating the complete base model.
+
+This reduces the computational cost of fine-tuning while allowing the model to specialize for the IRIS classification task.
+
+---
+
+# V1 Fine-Tuning
+
+The V1 tuning workflow is implemented in:
+
+```text
+src/tune_v1.py
+src/tune_v1_final.py
+```
+
+The final V1 model was trained using the V1 training dataset:
+
+```text
+gs://21f3000371-iris-data/week10/iris_v1_train_gemini.jsonl
+```
+
+The final tuning job was successfully submitted and completed.
+
+The tuned model was deployed as:
+
+```text
+iris-gemini-v1-final
+```
+
+---
+
+# V2 Fine-Tuning
+
+The V2 tuning workflow is implemented in:
+
+```text
+src/tune_v2.py
+src/tune_v2_final.py
+```
+
+The final V2 model was trained using:
+
+```text
+gs://21f3000371-iris-data/week10/iris_v2_train_gemini.jsonl
+```
+
+The tuned model was successfully trained and deployed as:
+
+```text
+iris-gemini-v2-final
+```
+
+---
+
+# Vertex AI Deployment
+
+The tuned models were deployed to Vertex AI / Agent Platform for online prediction.
+
+The final deployments included:
+
+```text
+iris-gemini-v1-final
+iris-gemini-v2-final
+```
+
+The deployment region was:
+
+```text
+us-central1
+```
+
+The models were then accessed by the evaluation script to generate predictions for the held-out test set.
+
+---
+
+# Test Script
+
+A small sanity test was also implemented using:
+
+```text
+src/test_tuned_model.py
+```
+
+Example test cases include:
+
+```text
+5.1, 3.5, 1.4, 0.2 → setosa
+6.7, 3.1, 4.7, 1.5 → versicolor
+6.3, 3.3, 6.0, 2.5 → virginica
+```
+
+The test script verified that the tuned model could correctly classify representative IRIS samples.
+
+---
+
+# Final Evaluation
+
+The complete held-out evaluation was performed using:
+
+```text
+src/evaluate_week10.py
+```
+
+Run:
 
 ```bash
-mlflow ui \
-  --backend-store-uri sqlite:///mlflow.db \
-  --host 0.0.0.0 \
-  --port 5000
+python src/evaluate_week10.py
 ```
 
-The experiment comparison UI was used to compare model performance across all poisoning levels.
+The script evaluates both tuned models against exactly the same 38 test samples.
+
+For every test sample, the script records:
+
+* Input features
+* Expected species
+* V1 raw output
+* V1 prediction
+* V1 format compliance
+* V2 raw output
+* V2 prediction
+* V2 format compliance
+
+Detailed results are saved to:
+
+```text
+data/week10/week10_evaluation_results.csv
+```
 
 ---
 
-# Metrics Tracked
+# Evaluation Metrics
 
-For every experiment, the following metrics were tracked:
+## 1. Accuracy
 
-* Accuracy
-* Precision
-* Recall
-* F1 Score
+Accuracy measures the percentage of test samples classified correctly.
 
-The poisoning level was logged as an experiment parameter.
-
-This allows the effect of increasing data corruption to be compared systematically.
+```text
+Accuracy = Correct Predictions / Total Predictions
+```
 
 ---
 
-# MLflow Experiment Comparison
+## 2. Precision
 
-The MLflow experiment contains four runs:
+Precision measures how many predictions for a particular class were actually correct.
 
 ```text
-Clean
-5% Poisoning
-10% Poisoning
-50% Poisoning
+Precision = True Positives / (True Positives + False Positives)
 ```
 
-The MLflow comparison interface allows the metrics of all four runs to be viewed together.
+Precision is calculated separately for:
 
-The comparison helps determine:
-
-* When model degradation begins
-* Which metrics change first
-* How severe the degradation becomes
-* Whether the model continues learning meaningful patterns under heavy corruption
+```text
+setosa
+versicolor
+virginica
+```
 
 ---
 
-# Analysis of Poisoning Impact
+## 3. Recall
 
-The clean dataset provides the baseline model performance.
-
-At low poisoning levels, the model may still learn useful patterns because most of the training data remains clean.
-
-As poisoning increases:
+Recall measures how many actual samples of a class were correctly identified.
 
 ```text
-Clean data ratio
-       |
-       v
-100% → 95% → 90% → 50%
-       |
-       v
-Increasing data corruption
+Recall = True Positives / (True Positives + False Negatives)
 ```
 
-The 50% poisoning scenario represents a severe attack because half of the training samples have been replaced with randomly generated features and labels.
-
-At this level, the training data contains a large amount of incorrect information, making it significantly more difficult for the model to learn the genuine relationships between IRIS features and species.
-
-The MLflow comparison provides empirical evidence for evaluating this degradation.
+Recall is also calculated separately for each species.
 
 ---
 
-# Why Data Quality Matters
+# 4. Format Compliance
 
-Increasing the amount of training data does not automatically solve a data-quality problem.
+Format compliance is an LLM-specific evaluation metric required for this assignment.
 
-Consider a dataset containing:
-
-```text
-1000 samples
-```
-
-If 10% of the data is poisoned:
+A response is considered compliant only if the model outputs exactly one valid species name:
 
 ```text
-900 clean
-100 poisoned
+setosa
+versicolor
+virginica
 ```
 
-Adding more data is useful only when the additional data is trustworthy.
+The following are considered non-compliant:
 
-For example, adding another 1000 poisoned samples would make the situation worse rather than better.
+```text
+Setosa
+Virginica
+This is setosa.
+The answer is versicolor.
+{"species": "virginica"}
+```
+
+Even when the semantic prediction is correct, these outputs fail the required format.
+
+This is important because a traditional classifier normally returns a predefined class label, whereas an LLM generates text.
 
 Therefore:
 
 ```text
-More Data ≠ Better Model
+Correct Classification ≠ Format Compliance
 ```
 
-when the additional data is unreliable.
-
-The focus should first be on ensuring data quality and provenance.
+Both dimensions need to be evaluated.
 
 ---
 
-# Data Quantity vs Data Quality
+# Final Task 4 Results
 
-The relationship can be summarized as:
+The held-out test set contained:
 
 ```text
-Clean Data
-    |
-    v
-Reliable Training Signal
-    |
-    v
-Better Model Learning
+38 samples
 ```
 
-Whereas:
+Test distribution:
 
 ```text
-Poisoned Data
-    |
-    v
-Incorrect Training Signal
-    |
-    v
-Model Degradation
+setosa      : 12
+versicolor  : 13
+virginica   : 13
 ```
 
-As the poisoned-data ratio increases, the amount of trustworthy information available to the model decreases.
+The final evaluation produced:
 
-For a fixed total dataset size:
+| Metric | V1 Raw | V2 Description |
+| --- | ---: | ---: |
+| Accuracy | 100.00% | 100.00% |
+| Format Compliance | 100.00% | 97.37% |
 
-| Poisoning | Clean Ratio |
-| --------: | ----------: |
-|        0% |        100% |
-|        5% |         95% |
-|       10% |         90% |
-|       50% |         50% |
+## Per-Class Precision
 
-Therefore, when data quality is compromised, the required total dataset size may need to increase to maintain a sufficient amount of clean training data.
+| Class | V1 | V2 |
+| --- | ---: | ---: |
+| setosa | 100.00% | 100.00% |
+| versicolor | 100.00% | 100.00% |
+| virginica | 100.00% | 100.00% |
 
-However, simply collecting more data is not an effective mitigation if the new data can also be poisoned.
+## Per-Class Recall
 
----
-
-# Task 5: Mitigation Strategies
-
-A production ML pipeline should introduce security controls before corrupted data reaches model training.
-
-## 1. Statistical Validation
-
-Monitor:
-
-* Mean
-* Median
-* Standard deviation
-* Feature distributions
-* Class distributions
-
-Unexpected distribution changes can indicate data corruption.
+| Class | V1 | V2 |
+| --- | ---: | ---: |
+| setosa | 100.00% | 100.00% |
+| versicolor | 100.00% | 100.00% |
+| virginica | 100.00% | 100.00% |
 
 ---
 
-## 2. Anomaly Detection
+# V1 vs V2 Comparison
 
-Outlier detection can identify samples that significantly differ from the expected feature distribution.
-
-For example:
+The final comparison is:
 
 ```text
-Normal IRIS feature range
-          |
-          v
-Expected samples
-          |
-          X
-Unexpected extreme values
+                     V1 Raw       V2 Description
+
+Accuracy             100.00%         100.00%
+Format Compliance    100.00%          97.37%
 ```
 
-Suspicious samples can be flagged for investigation.
+Both models achieved perfect classification accuracy on the held-out test set.
 
----
+However, V1 achieved better format compliance.
 
-## 3. Data Provenance Tracking
-
-Every dataset should have information about:
-
-* Source
-* Creation time
-* Version
-* Processing history
-* Responsible pipeline
-* Hash/checksum
-
-DVC can help maintain dataset versions and reproducibility.
-
----
-
-## 4. Schema Enforcement
-
-The pipeline should verify that incoming data has:
-
-* Expected columns
-* Correct data types
-* Valid feature ranges
-* Valid target classes
-* No unexpected missing values
-
-For example:
+Therefore, based on the required evaluation metrics:
 
 ```text
-sepal_length → numerical
-sepal_width  → numerical
-petal_length → numerical
-petal_width  → numerical
-species      → valid class
+Winner: V1 Raw Feature Representation
+```
+
+The difference was not in classification accuracy, precision, or recall.
+
+The difference was in the generated output format.
+
+---
+
+# Observed V2 Format Issue
+
+One V2 prediction illustrates the LLM-specific failure mode.
+
+Expected:
+
+```text
+virginica
+```
+
+V2 produced:
+
+```text
+Virginica
+```
+
+The semantic prediction is correct, but the output uses an uppercase first letter.
+
+According to the assignment definition:
+
+```text
+Virginica
+```
+
+is non-compliant because the expected output must match the valid species name exactly.
+
+Therefore:
+
+```text
+Prediction: Correct
+Format: Incorrect
+```
+
+This reduced V2's format compliance to:
+
+```text
+37 / 38 = 97.37%
+```
+
+V1 produced compliant outputs for all 38 test samples:
+
+```text
+38 / 38 = 100%
 ```
 
 ---
 
-## 5. Data Quality Gates
+# Why Did the Data Representation Make a Difference?
 
-Training should not begin automatically if validation fails.
+The two models received the same underlying numerical information, but the language patterns they were trained on were different.
 
-A secure pipeline can follow:
+## V1
+
+V1 was trained using:
 
 ```text
-Data Ingestion
-      |
-      v
-Schema Validation
-      |
-      v
-Statistical Validation
-      |
-      v
-Anomaly Detection
-      |
-      v
-Quality Gate
-      |
-   Pass / Fail
-      |
-      v
-Model Training
+sepal_length: ...
+sepal_width: ...
+petal_length: ...
+petal_width: ...
 ```
 
-This prevents suspicious datasets from entering the training stage.
+and the target was simply:
+
+```text
+setosa
+versicolor
+virginica
+```
+
+Therefore, the model learned a very direct mapping:
+
+```text
+Feature Values → Exact Class Label
+```
+
+The desired output format was extremely simple and consistent.
 
 ---
 
-# Production MLSecOps Architecture
+## V2
 
-A secure ML pipeline can be structured as:
+V2 was trained using natural-language descriptions:
 
 ```text
-             Data Source
-                 |
-                 v
-          Data Validation
-                 |
-        -------------------
-        |                 |
-      Valid             Invalid
-        |                 |
-        v                 v
-   Data Versioning     Reject / Alert
-        |
-        v
-   Model Training
-        |
-        v
-   Model Validation
-        |
-        v
-    Model Registry
-        |
-        v
-    Deployment
-        |
-        v
-   Inference API
-        |
-        v
- Monitoring & Logging
+A flower specimen has a sepal length of ...
+Identify the iris species.
 ```
 
-Security controls should exist at every stage.
+with outputs such as:
+
+```text
+This is Iris versicolor.
+```
+
+The model therefore had more natural-language patterns to reproduce.
+
+This can make the model more likely to produce linguistic variations such as:
+
+```text
+Virginica
+This is Iris virginica.
+The species is virginica.
+```
+
+Even if the semantic prediction is correct, these variations can violate a strict output contract.
+
+---
+
+# Key Insight
+
+The important observation is:
+
+```text
+V1 and V2 learned the classification task equally well,
+but V1 followed the exact output format more reliably.
+```
+
+This demonstrates that LLM evaluation should not rely only on semantic correctness.
+
+For production LLM systems, output formatting can be just as important as the underlying prediction.
+
+For example, a downstream application may require:
+
+```json
+{
+  "species": "virginica"
+}
+```
+
+If the model instead returns:
+
+```text
+The flower appears to be Virginica.
+```
+
+the answer may be semantically correct but unusable by a strict API.
+
+---
+
+# LLM-Specific Failure Mode
+
+Traditional classifiers generally return one of the predefined classes:
+
+```text
+setosa
+versicolor
+virginica
+```
+
+An LLM, however, generates free-form text.
+
+Therefore, it can introduce:
+
+* Capitalization differences
+* Extra explanations
+* JSON
+* Punctuation
+* Different wording
+* Unexpected tokens
+
+This is why format compliance was included as a separate metric.
+
+The Week 10 experiment demonstrates:
+
+```text
+Semantic Accuracy
+        +
+Output Format Reliability
+```
+
+should both be considered when evaluating LLM applications.
+
+---
+
+# Reproducibility
+
+The complete workflow can be reproduced using the following scripts.
+
+## 1. Prepare LLM Data
+
+```bash
+python src/prepare_llm_data.py
+```
+
+This creates:
+
+```text
+data/week10/iris_v1_raw.jsonl
+data/week10/iris_v2_description.jsonl
+```
+
+---
+
+## 2. Create Train/Test Split
+
+```bash
+python src/create_week10_split.py
+```
+
+Creates:
+
+```text
+data/week10/train.csv
+data/week10/test.csv
+```
+
+---
+
+## 3. Prepare Gemini Training Data
+
+Use:
+
+```bash
+python src/prepare_week10_train_data.py
+```
+
+The resulting datasets include:
+
+```text
+data/week10/iris_v1_train_gemini.jsonl
+data/week10/iris_v2_train_gemini.jsonl
+```
+
+---
+
+## 4. Convert V1 and V2 Data
+
+The conversion scripts are:
+
+```bash
+python src/convert_v1_to_gemini.py
+python src/convert_v2_to_gemini.py
+```
+
+---
+
+## 5. Fine-Tune V1
+
+```bash
+python src/tune_v1_final.py
+```
+
+---
+
+## 6. Fine-Tune V2
+
+```bash
+python src/tune_v2_final.py
+```
+
+The tuning jobs are executed on Vertex AI / Agent Platform.
+
+---
+
+## 7. Test a Tuned Model
+
+```bash
+python src/test_tuned_model.py
+```
+
+---
+
+## 8. Run Final Evaluation
+
+```bash
+python src/evaluate_week10.py
+```
+
+The evaluation compares both models on the same held-out test set.
+
+---
+
+# Google Cloud Storage Artifacts
+
+The Week 10 Gemini datasets were uploaded to:
+
+```text
+gs://21f3000371-iris-data/week10/
+```
+
+The main training artifacts include:
+
+```text
+iris_v1_gemini.jsonl
+iris_v1_raw.jsonl
+iris_v1_train_gemini.jsonl
+iris_v2_description.jsonl
+iris_v2_gemini.jsonl
+iris_v2_train_gemini.jsonl
+```
 
 ---
 
 # Repository Structure
 
+The Week 10 additions include:
+
 ```text
 21F3000371_MLOPS_WEEKLY_ASSIGNMENT/
 │
 ├── data/
-│   ├── iris.csv
-│   ├── iris.csv.dvc
-│   └── mlsecops/
-│       ├── iris_clean.csv
-│       ├── iris_poisoned_5.csv
-│       ├── iris_poisoned_10.csv
-│       └── iris_poisoned_50.csv
+│   └── week10/
+│       ├── iris_v1_gemini.jsonl
+│       ├── iris_v1_raw.jsonl
+│       ├── iris_v1_train_gemini.jsonl
+│       ├── iris_v2_description.jsonl
+│       ├── iris_v2_gemini.jsonl
+│       ├── iris_v2_train_gemini.jsonl
+│       ├── train.csv
+│       ├── test.csv
+│       └── week10_evaluation_results.csv
 │
 ├── src/
-│   ├── train.py
-│   ├── inference.py
-│   ├── poison_data.py
-│   └── train_mlsecops.py
+│   ├── prepare_llm_data.py
+│   ├── create_week10_split.py
+│   ├── prepare_week10_train_data.py
+│   ├── convert_v1_to_gemini.py
+│   ├── convert_v2_to_gemini.py
+│   ├── tune_v1.py
+│   ├── tune_v1_final.py
+│   ├── tune_v2.py
+│   ├── tune_v2_final.py
+│   ├── test_tuned_model.py
+│   └── evaluate_week10.py
 │
-├── tests/
-│   ├── test_data.py
-│   └── test_model.py
-│
-├── models/
-│   └── model.pkl
-│
-├── artifacts/
-│   ├── model.pkl
-│   ├── eval.csv
-│   └── metrics.txt
-│
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── cd.yml
-│
-├── deployment.yaml
-├── service.yaml
-├── hpa.yaml
-├── Dockerfile
-├── requirements.txt
-├── .gitignore
 └── README.md
 ```
 
 ---
 
+# Important Experimental Considerations
 
+The evaluation was performed on a small IRIS dataset with only 38 held-out test examples.
 
-# Reproducing the Experiment
+Therefore, the results should be interpreted in the context of this assignment rather than as evidence that one representation is universally better for all LLM applications.
 
-## 1. Generate Poisoned Datasets
+The most meaningful observation is that:
 
-```bash
-python src/poison_data.py
+```text
+Both representations achieved perfect classification accuracy,
+but V1 provided stricter output-format compliance.
 ```
+
+The single V2 format failure demonstrates why output validation is important in production LLM systems.
 
 ---
 
-## 2. Run MLsecOps Training
+# LLMOps Architecture
 
-```bash
-python src/train_mlsecops.py
-```
-
-The training script evaluates the clean and poisoned datasets and records the experiments in MLflow.
-
----
-
-## 3. Start MLflow
-
-```bash
-mlflow ui \
-  --backend-store-uri sqlite:///mlflow.db \
-  --host 0.0.0.0 \
-  --port 5000
-```
-
-Open the MLflow interface and select:
+The complete Week 10 architecture can be summarized as:
 
 ```text
-iris_mlsecops_poisoning
+                 IRIS Dataset
+                      |
+                      v
+             Train/Test Split
+                      |
+          +-----------+-----------+
+          |                       |
+          v                       v
+    V1 Raw Features       V2 Description
+          |                       |
+          v                       v
+     Gemini JSONL            Gemini JSONL
+          |                       |
+          v                       v
+     Vertex AI SFT           Vertex AI SFT
+          |                       |
+          v                       v
+       LoRA Model              LoRA Model
+          |                       |
+          +-----------+-----------+
+                      |
+                      v
+               Vertex AI Endpoint
+                      |
+                      v
+              Held-Out Test Set
+                      |
+                      v
+              Prediction Engine
+                      |
+          +-----------+-----------+
+          |           |           |
+          v           v           v
+       Accuracy   Precision    Recall
+                      |
+                      v
+              Format Compliance
+                      |
+                      v
+                V1 vs V2
 ```
-
-Compare the four runs:
-
-```text
-0%
-5%
-10%
-50%
-```
-
----
-
-
-# Conclusion
-
-This assignment demonstrates the importance of security throughout the machine learning lifecycle.
-
-A data poisoning attack was simulated on the IRIS dataset at:
-
-```text
-5%
-10%
-50%
-```
-
-corruption levels, with the clean dataset used as the baseline.
-
-MLflow was used to track and compare the resulting model experiments using accuracy, precision, recall, and F1 score.
-
-The experiment demonstrates that model reliability depends not only on the amount of training data but also on the quality and trustworthiness of that data.
-
-A production ML pipeline should therefore combine:
-
-```text
-Data Validation
-+
-Data Provenance
-+
-Anomaly Detection
-+
-Schema Enforcement
-+
-Quality Gates
-+
-Model Validation
-+
-Monitoring
-```
-
-to reduce the risk of ML-specific security threats.
-
-MLSecOps extends traditional DevSecOps principles to the complete ML lifecycle, protecting the system from data-level attacks through to model serving and inference.
