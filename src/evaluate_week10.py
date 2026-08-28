@@ -17,12 +17,12 @@ LOCATION = "us-central1"
 
 V1_MODEL = (
     "projects/558559129566/locations/us-central1/"
-    "endpoints/7457860377611599872"
+    "endpoints/3300967552804454400"
 )
 
 V2_MODEL = (
     "projects/558559129566/locations/us-central1/"
-    "endpoints/527031657320939520"
+    "endpoints/432456065146159104"
 )
 
 TEST_FILE = "data/week10/test.csv"
