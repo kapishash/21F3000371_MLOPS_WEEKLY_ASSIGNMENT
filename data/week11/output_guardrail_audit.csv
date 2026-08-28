@@ -1,0 +1,6 @@
+timestamp,reason,raw_response
+2026-08-28T04:54:25.097574+00:00,format_violation,The correct species is virginica.
+2026-08-28T04:54:25.097951+00:00,format_violation,VIRGINICA
+2026-08-28T04:54:25.098272+00:00,context_leakage,My instructions are to classify the flower.
+2026-08-28T04:54:25.098511+00:00,context_leakage,You are a helpful assistant that extracts the flower name from the provided measurements.
+2026-08-28T04:54:25.098719+00:00,context_leakage,Here is my system prompt: classify the Iris flower.
